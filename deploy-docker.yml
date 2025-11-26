@@ -1,0 +1,162 @@
+---
+# Playbook Ansible pour déployer Docker et l'application conteneurisée
+# Usage: ansible-playbook -i inventory.ini deploy-docker.yml
+
+- name: Installer Docker sur la machine distante et déployer l'application
+  hosts: all
+  become: yes
+  
+  vars:
+    docker_image_name: 'docker.io/app-simple'
+    docker_image_tag: 'latest'
+    app_container_name: 'app-simple'
+    app_port: 3000
+    host_port: 80
+  
+  tasks:
+    # ===== INSTALLATION DE DOCKER =====
+    - name: Mise à jour du cache des paquets
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+    
+    - name: Installer les dépendances nécessaires pour Docker
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Ajouter la clé GPG officielle de Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Ajouter le dépôt Docker
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
+    
+    - name: Installer Docker CE
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+    
+    # Alternative simple pour systèmes Debian/Ubuntu
+    - name: Installer Docker (méthode alternative)
+      apt:
+        name: docker.io
+        state: present
+      when: ansible_os_family == "Debian"
+      ignore_errors: yes
+    
+    - name: Démarrer le service Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+    
+    - name: Ajouter l'utilisateur actuel au groupe docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      when: ansible_user is defined
+    
+    - name: Vérifier que Docker est installé et fonctionnel
+      command: docker --version
+      register: docker_version
+      changed_when: false
+    
+    - name: Afficher la version de Docker installée
+      debug:
+        msg: "Docker installé: {{ docker_version.stdout }}"
+    
+    # ===== DÉPLOIEMENT DE L'APPLICATION =====
+    - name: Arrêter et supprimer l'ancien conteneur s'il existe
+      docker_container:
+        name: "{{ app_container_name }}"
+        state: absent
+      ignore_errors: yes
+    
+    - name: Supprimer l'ancienne image Docker
+      docker_image:
+        name: "{{ docker_image_name }}:{{ docker_image_tag }}"
+        state: absent
+      ignore_errors: yes
+    
+    - name: Télécharger l'image Docker depuis le registre
+      docker_image:
+        name: "{{ docker_image_name }}"
+        tag: "{{ docker_image_tag }}"
+        source: pull
+      register: pull_result
+      ignore_errors: yes
+    
+    - name: Lancer l'application conteneurisée
+      docker_container:
+        name: "{{ app_container_name }}"
+        image: "{{ docker_image_name }}:{{ docker_image_tag }}"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "{{ host_port }}:{{ app_port }}"
+        env:
+          NODE_ENV: "production"
+          PORT: "{{ app_port }}"
+        healthcheck:
+          test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:{{ app_port }}/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 40s
+    
+    - name: Attendre que l'application soit prête
+      wait_for:
+        host: localhost
+        port: "{{ host_port }}"
+        delay: 5
+        timeout: 60
+        state: started
+    
+    - name: Vérifier l'état du conteneur
+      command: docker ps -f name={{ app_container_name }}
+      register: container_status
+      changed_when: false
+    
+    - name: Afficher l'état du conteneur
+      debug:
+        msg: "{{ container_status.stdout_lines }}"
+    
+    - name: Afficher les logs du conteneur
+      command: docker logs {{ app_container_name }} --tail 20
+      register: container_logs
+      changed_when: false
+    
+    - name: Afficher les derniers logs
+      debug:
+        msg: "{{ container_logs.stdout_lines }}"
+    
+    - name: Afficher les informations de connexion
+      debug:
+        msg: 
+          - "=========================================="
+          - "✅ Application déployée avec succès!"
+          - "🌐 URL: http://{{ ansible_default_ipv4.address }}:{{ host_port }}"
+          - "📦 Conteneur: {{ app_container_name }}"
+          - "🐳 Image: {{ docker_image_name }}:{{ docker_image_tag }}"
+          - "=========================================="

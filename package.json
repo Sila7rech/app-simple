@@ -1,0 +1,22 @@
+{
+  "name": "app-simple",
+  "version": "1.0.0",
+  "description": "Application web simple pour atelier DevOps",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "nodejs",
+    "docker",
+    "jenkins",
+    "ansible",
+    "devops"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
