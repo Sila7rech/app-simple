@@ -1,0 +1,37 @@
+---
+# Variables pour le déploiement Ansible
+# Copiez ce fichier vers 'vars.yml' et personnalisez selon vos besoins
+
+# Configuration de l'image Docker
+docker_image_name: 'docker.io/votre-username/app-simple'
+docker_image_tag: 'latest'
+
+# Configuration du conteneur
+app_container_name: 'app-simple'
+app_port: 3000
+host_port: 80
+
+# Configuration de l'environnement
+node_env: 'production'
+
+# Options de restart
+restart_policy: 'always'
+
+# Exemples pour différents environnements :
+
+# --- DÉVELOPPEMENT ---
+# docker_image_name: 'app-simple'
+# docker_image_tag: 'dev'
+# host_port: 3000
+
+# --- STAGING ---
+# docker_image_name: 'docker.io/username/app-simple'
+# docker_image_tag: 'staging'
+# host_port: 8080
+# node_env: 'staging'
+
+# --- PRODUCTION ---
+# docker_image_name: 'docker.io/username/app-simple'
+# docker_image_tag: 'latest'
+# host_port: 80
+# node_env: 'production'
